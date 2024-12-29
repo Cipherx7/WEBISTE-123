@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { StockList } from './components/StockList';
 import { Portfolio } from './components/Portfolio';
 import { TradeModal } from './components/TradeModal';
@@ -7,6 +7,7 @@ import { HistoricalContext } from './components/HistoricalContext';
 import { MarketWarning } from './components/MarketWarning';
 import { StockChart } from './components/StockChart';
 import { SearchBar } from './components/SearchBar';
+import { FlagPopup } from './components/FlagPopup';
 import { mockStocks } from './data/mockStocks';
 import { Stock, Portfolio as PortfolioType } from './types/stock';
 
@@ -18,6 +19,7 @@ function App() {
 
   const [selectedStock, setSelectedStock] = useState<Stock | null>(null);
   const [isBuyMode, setIsBuyMode] = useState(true);
+  const [showFlag, setShowFlag] = useState(false);
 
   const handleBuy = (stock: Stock) => {
     setSelectedStock(stock);
@@ -32,6 +34,13 @@ function App() {
     }
   };
 
+  const checkLavelCondition = (updatedPortfolio: PortfolioType) => {
+    const lavelPosition = updatedPortfolio.positions.find(p => p.symbol === 'LAVEL');
+    if (lavelPosition && lavelPosition.shares >= 100) {
+      setShowFlag(true);
+    }
+  };
+
   const handleTrade = (shares: number) => {
     if (!selectedStock) return;
 
@@ -40,10 +49,10 @@ function App() {
       if (cost <= portfolio.cash) {
         const existingPosition = portfolio.positions.find(p => p.symbol === selectedStock.symbol);
         
-        setPortfolio(prev => ({
-          cash: prev.cash - cost,
+        const updatedPortfolio = {
+          cash: portfolio.cash - cost,
           positions: existingPosition
-            ? prev.positions.map(p =>
+            ? portfolio.positions.map(p =>
                 p.symbol === selectedStock.symbol
                   ? {
                       ...p,
@@ -53,30 +62,35 @@ function App() {
                   : p
               )
             : [
-                ...prev.positions,
+                ...portfolio.positions,
                 {
                   symbol: selectedStock.symbol,
                   shares,
                   averageCost: selectedStock.price
                 }
               ]
-        }));
+        };
+        
+        setPortfolio(updatedPortfolio);
+        checkLavelCondition(updatedPortfolio);
       }
     } else {
       const position = portfolio.positions.find(p => p.symbol === selectedStock.symbol);
       if (position && position.shares >= shares) {
         const revenue = selectedStock.price * shares;
         
-        setPortfolio(prev => ({
-          cash: prev.cash + revenue,
-          positions: prev.positions
+        const updatedPortfolio = {
+          cash: portfolio.cash + revenue,
+          positions: portfolio.positions
             .map(p =>
               p.symbol === selectedStock.symbol
                 ? { ...p, shares: p.shares - shares }
                 : p
             )
             .filter(p => p.shares > 0)
-        }));
+        };
+        
+        setPortfolio(updatedPortfolio);
       }
     }
     
@@ -120,6 +134,11 @@ function App() {
             onTrade={handleTrade}
           />
         )}
+
+        <FlagPopup 
+          isOpen={showFlag} 
+          onClose={() => setShowFlag(false)} 
+        />
       </div>
     </div>
   );
